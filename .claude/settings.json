@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime\")",
+      "Bash(curl -sS -o /dev/null -w \"HTTP %{http_code}, time %{time_total}s\\\\n\" --max-time 20 https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/libvips-8.14.5-win32-x64.tar.br)",
+      "Bash(curl -sSL -o /dev/null -w \"Final HTTP %{http_code}, size %{size_download} bytes, time %{time_total}s\\\\n\" --max-time 30 https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/libvips-8.14.5-win32-x64.tar.br)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
