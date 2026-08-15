@@ -12,12 +12,6 @@ interface GroqChatResponse {
   choices: { message: { content: string } }[];
 }
 
-// TODO: this service will eventually own the retrieval + generation pipeline:
-//   1. Embed the incoming user query (same local model used for ingestion)
-//   2. Run a cosine-similarity nearest-neighbor search against stored chunks (pgvector)
-//   3. Combine with Postgres full-text search (tsvector/tsquery) for hybrid retrieval
-//   4. Inject top-k chunks into a prompt and call Groq's chat completion endpoint
-//   5. Return the generated answer plus the source chunks used, as citations
 @Injectable()
 export class QueryService {
   constructor(@Inject('PG_POOL') private pool: Pool) {}

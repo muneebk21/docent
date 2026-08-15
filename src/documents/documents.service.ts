@@ -30,4 +30,36 @@ export class DocumentsService {
       );
     }
   }
+
+  async listDocuments() {
+    const result = await this.pool.query(
+      'SELECT id, title, uploaded_at FROM documents  ORDER BY uploaded_at DESC',
+    );
+
+    return result.rows;
+  }
+
+  async getDocumentById(id: number) {
+    const docResult = await this.pool.query(
+      'SELECT id, title, uploaded_at FROM documents WHERE id = $1',
+      [id],
+    );
+
+    const chunkCountResult = await this.pool.query(
+      'SELECT COUNT(*) FROM chunks WHERE document_id = $1',
+      [id],
+    );
+    const doc = docResult.rows[0];
+
+    return {
+      id: doc.id,
+      title: doc.title,
+      uploaded_at: doc.uploaded_at,
+      chunkCount: parseInt(chunkCountResult.rows[0].count),
+    };
+  }
+
+  async deleteDocument(id: number): Promise<void> {
+    await this.pool.query('DELETE FROM documents WHERE id = $1', [id]);
+  }
 }

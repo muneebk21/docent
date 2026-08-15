@@ -1,9 +1,16 @@
-// TODO: further document ingestion API endpoints to add, e.g.
-//   GET  /documents        - list ingested documents
-//   GET  /documents/:id    - fetch a single document + its chunk count
-//   DELETE /documents/:id  - remove a document and its chunks/embeddings
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { DocumentsService } from './documents.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { extractTextFromPdf } from './extract-pdf-text';
 
 @Controller('documents')
 export class DocumentsController {
@@ -14,5 +21,34 @@ export class DocumentsController {
     const id = await this.documentsService.insertDocument(title);
     await this.documentsService.insertChunks(id, text);
     return { id };
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadPdf(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('title') title: string,
+  ) {
+    const text = await extractTextFromPdf(file.buffer);
+    const id = await this.documentsService.insertDocument(title);
+    await this.documentsService.insertChunks(id, text);
+
+    return { id };
+  }
+
+  @Get()
+  async list() {
+    return this.documentsService.listDocuments();
+  }
+
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.documentsService.getDocumentById(Number(id));
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    await this.documentsService.deleteDocument(Number(id));
+    return { success: true };
   }
 }
