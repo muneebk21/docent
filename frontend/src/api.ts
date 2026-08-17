@@ -25,6 +25,19 @@ export interface QueryResponse {
   sources: QuerySource[];
 }
 
+export interface CompareChunk {
+  id: number;
+  content: string;
+  document_id: number;
+  score?: number;
+}
+
+export interface CompareResponse {
+  vectorOnly: CompareChunk[];
+  keywordOnly: CompareChunk[];
+  hybrid: CompareChunk[];
+}
+
 async function parseJson(res: Response) {
   const text = await res.text();
   try {
@@ -95,6 +108,29 @@ export async function askQuestion(question: string): Promise<QueryResponse> {
   }
 
   return data as QueryResponse;
+}
+
+export async function compareSearch(question: string): Promise<CompareResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/query/compare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+  } catch (err) {
+    throw new Error(
+      `${(err as Error).message} — is the backend running at ${API_BASE} and is CORS enabled?`,
+    );
+  }
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(toErrorMessage(res, data));
+  }
+
+  return data as CompareResponse;
 }
 
 export async function fetchDocuments(): Promise<DocumentSummary[]> {

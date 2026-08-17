@@ -8,6 +8,10 @@ export interface ChunkRow {
   document_id: number;
 }
 
+export interface ScoredChunkRow extends ChunkRow {
+  score: number;
+}
+
 interface GroqChatResponse {
   choices: { message: { content: string } }[];
 }
@@ -53,5 +57,50 @@ export class QueryService {
 
     const data = (await response.json()) as GroqChatResponse;
     return data.choices[0].message.content;
+  }
+  async keywordSearch(
+    question: string,
+    limit: number = 5,
+  ): Promise<ChunkRow[]> {
+    const result = await this.pool.query<ChunkRow>(
+      "SELECT id,content, document_id FROM chunks WHERE content_tsv @@ plainto_tsquery('english', $1) LIMIT $2",
+      [question, limit],
+    );
+
+    return result.rows;
+  }
+
+  async hybridSearch(
+    question: string,
+    limit: number = 5,
+  ): Promise<ScoredChunkRow[]> {
+    const releChunk = await this.findRelevantChunks(question, 10);
+    const keySearch = await this.keywordSearch(question, 10);
+
+    const k = 60;
+    const scores = new Map<number, number>();
+    const chunkData = new Map<number, ChunkRow>();
+
+    releChunk.forEach((chunk, index) => {
+      const contribution = 1 / (k + index);
+      const currentScore = scores.get(chunk.id) || 0;
+      scores.set(chunk.id, currentScore + contribution);
+      chunkData.set(chunk.id, chunk);
+    });
+
+    keySearch.forEach((key, index) => {
+      const contribution = 1 / (k + index);
+      const currentScore = scores.get(key.id) || 0;
+      scores.set(key.id, currentScore + contribution);
+      chunkData.set(key.id, key);
+    });
+
+    const scoresArray = Array.from(scores.entries());
+    scoresArray.sort((a, b) => b[1] - a[1]);
+
+    return scoresArray.slice(0, limit).map(([id, score]) => {
+      const chunk = chunkData.get(id)!;
+      return { ...chunk, score };
+    });
   }
 }

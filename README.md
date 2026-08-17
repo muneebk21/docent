@@ -144,6 +144,80 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/query `
 }
 ```
 
+## Hybrid Search
+
+Docent also supports **hybrid search**, which combines Postgres full-text
+search (keyword/BM25-style matching) with the existing pgvector semantic
+search, merging the two result sets with **Reciprocal Rank Fusion (RRF)**.
+
+### Why
+
+Pure vector search can under-rank exact terms, codes, or acronyms that don't
+have strong semantic neighbors in the embedding space — a query for a
+specific product code or proper noun may not surface the chunk that contains
+it verbatim. Pure keyword search has the opposite problem: it fails
+completely on paraphrased or semantically-related queries that share no
+literal words with the source text. Combining both makes retrieval more
+robust to both failure modes than either search on its own.
+
+### Example
+
+Query: `"cloud file storage for 3D models"`, against a chunk whose text
+mentions `"Amazon S3"` and `"3D Product Configurator"`.
+
+- **Keyword search** returns zero results — there's no literal word overlap
+  between the query and the source text.
+- **Vector search** correctly finds the relevant chunk via semantic
+  similarity, even though no words match.
+- **Hybrid search** gracefully falls back to the vector ranking when keyword
+  search contributes nothing, demonstrating graceful degradation rather than
+  outright failure.
+
+### Endpoints
+
+- `POST /query/test-keyword` — keyword-only search (Postgres full-text search)
+- `POST /query/test-hybrid` — hybrid search (RRF-merged vector + keyword)
+- `POST /query/compare` — runs vector-only, keyword-only, and hybrid search
+  on the same question and returns all three side by side, for comparison
+
+**curl**
+
+```bash
+curl -X POST http://localhost:3000/query/compare \
+  -H "Content-Type: application/json" \
+  -d '{ "question": "cloud file storage for 3D models" }'
+```
+
+**PowerShell**
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/query/compare `
+  -ContentType "application/json" `
+  -Body (@{ question = "cloud file storage for 3D models" } | ConvertTo-Json)
+```
+
+**Response**
+
+```json
+{
+  "vectorOnly": [ { "id": 1, "content": "...", "document_id": 1 } ],
+  "keywordOnly": [],
+  "hybrid": [ { "id": 1, "content": "...", "document_id": 1, "score": 0.0161 } ]
+}
+```
+
+### Implementation
+
+- The `chunks` table has a `content_tsv` generated column
+  (`GENERATED ALWAYS AS (to_tsvector('english', content)) STORED`), indexed
+  with a GIN index, alongside the existing `embedding` pgvector column.
+- RRF is implemented in application code
+  ([query.service.ts](src/query/query.service.ts)) rather than as a single
+  SQL query: the vector search and keyword search each run as separate
+  queries, and their ranked results are merged by reciprocal rank
+  (`1 / (k + rank)`, with `k = 60`) rather than by raw score, since cosine
+  distance and text-search rank aren't on comparable scales.
+
 ## Portfolio / learning project
 
 This repo exists primarily so I could understand how the pieces of a RAG

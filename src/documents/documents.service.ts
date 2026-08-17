@@ -3,6 +3,16 @@ import { Pool } from 'pg';
 import { chunkText } from './chunk-text';
 import { getEmbedding } from './get-embedding';
 
+export interface DocumentRow {
+  id: number;
+  title: string;
+  uploaded_at: Date;
+}
+
+interface CountRow {
+  count: string;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(@Inject('PG_POOL') private pool: Pool) {}
@@ -31,8 +41,8 @@ export class DocumentsService {
     }
   }
 
-  async listDocuments() {
-    const result = await this.pool.query(
+  async listDocuments(): Promise<DocumentRow[]> {
+    const result = await this.pool.query<DocumentRow>(
       'SELECT id, title, uploaded_at FROM documents  ORDER BY uploaded_at DESC',
     );
 
@@ -40,12 +50,12 @@ export class DocumentsService {
   }
 
   async getDocumentById(id: number) {
-    const docResult = await this.pool.query(
+    const docResult = await this.pool.query<DocumentRow>(
       'SELECT id, title, uploaded_at FROM documents WHERE id = $1',
       [id],
     );
 
-    const chunkCountResult = await this.pool.query(
+    const chunkCountResult = await this.pool.query<CountRow>(
       'SELECT COUNT(*) FROM chunks WHERE document_id = $1',
       [id],
     );
@@ -55,7 +65,7 @@ export class DocumentsService {
       id: doc.id,
       title: doc.title,
       uploaded_at: doc.uploaded_at,
-      chunkCount: parseInt(chunkCountResult.rows[0].count),
+      chunkCount: parseInt(chunkCountResult.rows[0].count, 10),
     };
   }
 
